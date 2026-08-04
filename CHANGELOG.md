@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-04
+
+First release.
+
 ### Added
 
 - **Worktree discovery.** Parallel filesystem walk that prunes as soon as a
@@ -44,4 +48,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parse — every removal would have failed with exit 128. See
   `docs/notes-windows.md`.
 
-[Unreleased]: https://github.com/leboiko/worktree-purge/commits/master
+[Unreleased]: https://github.com/leboiko/worktree-purge/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/leboiko/worktree-purge/releases/tag/v0.1.0
