@@ -108,12 +108,16 @@ fn force_body(plan: &PurgePlan) -> Vec<Line<'static>> {
         ));
     }
     lines.push(Line::raw(""));
+    // Deliberately "any": a batch can mix worktrees that are dirty with ones
+    // that are merely unpushed, and telling the user their uncommitted work is
+    // about to be destroyed when a given worktree has none is the kind of
+    // inaccuracy that teaches people to stop reading these dialogs.
     lines.push(Line::from(Span::styled(
-        "  Uncommitted changes in these worktrees are destroyed.",
+        "  Any uncommitted changes here are destroyed and cannot be recovered.",
         Style::new().fg(C_DANGER).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(Span::styled(
-        "  Commits and branches are not — they stay in the repository.",
+        "  Commits and branches survive — they stay in the repository.",
         dim(C_MUTED),
     )));
     lines.push(Line::raw(""));
@@ -392,11 +396,11 @@ mod tests {
             "the modal must say plainly that the usual keys are inert: {body}"
         );
         assert!(
-            body.contains("Uncommitted changes in these worktrees are destroyed."),
+            body.contains("Any uncommitted changes here are destroyed"),
             "{body}"
         );
         assert!(
-            body.contains("Commits and branches are not"),
+            body.contains("Commits and branches survive"),
             "the asymmetry must be stated, not implied: {body}"
         );
     }

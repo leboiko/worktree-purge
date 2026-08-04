@@ -15,10 +15,9 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
-use filesize::PathExt;
-
 use crate::git;
-use crate::model::{PurgeItem, PurgeOutcome};
+use crate::model::{PurgeItem, PurgeOutcome, SizeState};
+use crate::scan::size;
 
 /// How many `Normal` path components an orphan path must have below the
 /// filesystem root before we are willing to delete it recursively.
@@ -259,49 +258,14 @@ fn measure_freed(item: &PurgeItem) -> u64 {
         // space that was already reclaimed by someone else.
         return 0;
     }
-    measure_tree(path).or(item.size).unwrap_or(0)
-}
-
-/// Recursive allocated size of everything under `root`.
-///
-/// Allocated blocks rather than apparent length, so the figure matches what
-/// the filesystem actually hands back. Symlinks are never followed — they
-/// point at bytes that removing this worktree will not free.
-///
-/// `None` only when `root` itself cannot be stat'ed. An unreadable *subtree*
-/// contributes zero rather than poisoning the whole measurement.
-//
-// TODO: delegate to `scan::size::dir_size` once that module lands; it is
-// `todo!()` today and calling it would panic the purge worker.
-fn measure_tree(root: &Path) -> Option<u64> {
-    let root_meta = root.symlink_metadata().ok()?;
-    let mut total = root.size_on_disk_fast(&root_meta).unwrap_or(0);
-
-    if !root_meta.file_type().is_dir() {
-        return Some(total);
+    // The same walk the scanner uses to fill the size column, so the figure
+    // reported as freed is measured exactly the way the figure shown before
+    // the purge was. Two implementations would be free to drift apart, and the
+    // discrepancy would surface as the tool misreporting reclaimed space.
+    match size::dir_size(path) {
+        SizeState::Ready(bytes) => bytes,
+        SizeState::Unknown | SizeState::Pending => item.size.unwrap_or(0),
     }
-
-    // Explicit stack rather than recursion: a pathologically deep tree must
-    // not overflow the stack of a background worker.
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            // `DirEntry::metadata` does not traverse symlinks.
-            let Ok(meta) = entry.metadata() else {
-                continue;
-            };
-            let path = entry.path();
-            total = total.saturating_add(path.size_on_disk_fast(&meta).unwrap_or(0));
-            if meta.file_type().is_dir() {
-                stack.push(path);
-            }
-        }
-    }
-
-    Some(total)
 }
 
 /// The guard's pure half: everything decidable from the path and the home

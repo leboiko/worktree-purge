@@ -113,6 +113,8 @@ worktree-purge [FOLDER]
 | Key | Action |
 |---|---|
 | `↑` `↓` / `j` `k` | Move cursor |
+| `PageUp` `PageDown` | Move a page at a time |
+| `g` / `G`, `Home` / `End` | Jump to top / bottom |
 | `←` `→` / `h` `l` | Collapse / expand repository |
 | `Enter` | Toggle expansion |
 | `Space` | Toggle selection (on a repo header: all its worktrees) |
@@ -121,9 +123,21 @@ worktree-purge [FOLDER]
 | `d` / `x` | Purge selected (or the worktree under the cursor) |
 | `s` | Cycle sort: name → size → active first |
 | `r` | Rescan |
-| `g` / `G` | Jump to top / bottom |
 | `?` | Help overlay |
 | `q` / `Esc` | Quit, or close the current dialog |
+| `Ctrl-C` | Quit from anywhere |
+
+In the confirmation dialogs:
+
+| Key | Action |
+|---|---|
+| `y` / `Enter` | Confirm the first gate |
+| `F` | Confirm the second gate — required when the batch contains worktrees that would lose work |
+| `n` / `q` / `Esc` | Cancel |
+
+The second gate deliberately does not accept `y` or `Enter`. Holding either
+down, or double-tapping out of habit, must not be able to carry you through
+both gates.
 
 ## How it works
 

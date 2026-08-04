@@ -12,14 +12,29 @@ use std::process::Command;
 
 use tempfile::TempDir;
 
+/// A path that is guaranteed not to exist, used to neutralise the user's
+/// global git config.
+///
+/// Git treats an unreadable `GIT_CONFIG_GLOBAL` as empty configuration, which
+/// is what we want: fixtures must not inherit the developer's `~/.gitconfig`
+/// (a `status.showUntrackedFiles=no` there would silently break the dirty
+/// probe). `/dev/null` is the usual idiom but is not a valid path on Windows,
+/// which is a CI-tested tier for this project — a path that simply does not
+/// exist works identically on every platform.
+fn no_such_config() -> PathBuf {
+    std::env::temp_dir().join("worktree-purge-fixture-no-global-config")
+}
+
 /// Run git in `dir`, panicking with full context on failure.
 pub fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")
         .current_dir(dir)
         .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        .env("GIT_CONFIG_GLOBAL", no_such_config())
+        // The documented switch for skipping system-level config; unlike
+        // GIT_CONFIG_SYSTEM it needs no path at all.
+        .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_AUTHOR_NAME", "Fixture")
         .env("GIT_AUTHOR_EMAIL", "fixture@example.com")
         .env("GIT_COMMITTER_NAME", "Fixture")

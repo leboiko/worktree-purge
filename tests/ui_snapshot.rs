@@ -424,8 +424,14 @@ fn the_force_modal_names_the_distinct_key_and_only_the_risky_items() {
         "the modal must say plainly that the usual keys are inert: {text}"
     );
     assert!(
-        text.contains("Commits and branches are not"),
+        text.contains("Commits and branches survive"),
         "the modal must state what is *not* destroyed: {text}"
+    );
+    // A batch can mix dirty worktrees with merely-unpushed ones, so the
+    // warning must not assert that every listed worktree has uncommitted work.
+    assert!(
+        text.contains("Any uncommitted changes here are destroyed"),
+        "the destruction warning must stay true for an unpushed-only item: {text}"
     );
 }
 

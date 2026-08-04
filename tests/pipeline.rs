@@ -60,7 +60,10 @@ fn apply_stashes(
     git_common_dir: &std::path::Path,
     counts: &HashMap<String, usize>,
 ) {
-    for group in groups.iter_mut().filter(|g| g.git_common_dir == git_common_dir) {
+    for group in groups
+        .iter_mut()
+        .filter(|g| g.git_common_dir == git_common_dir)
+    {
         for worktree in &mut group.worktrees {
             if let Some(branch) = worktree.branch.as_deref() {
                 worktree.stash_count = counts.get(branch).copied().unwrap_or(0);
@@ -69,7 +72,11 @@ fn apply_stashes(
     }
 }
 
-fn find<'a>(groups: &'a [RepoGroup], repo: &str, worktree: &str) -> &'a worktree_purge::model::Worktree {
+fn find<'a>(
+    groups: &'a [RepoGroup],
+    repo: &str,
+    worktree: &str,
+) -> &'a worktree_purge::model::Worktree {
     groups
         .iter()
         .find(|g| g.name == repo)
@@ -101,7 +108,11 @@ fn scan_and_enrichment_agree_on_every_worktree() {
     let group_names: Vec<_> = groups.iter().map(|g| g.name.as_str()).collect();
     assert_eq!(group_names, vec!["alpha", "beta"]);
 
-    let alpha_worktrees: Vec<_> = groups[0].worktrees.iter().map(|w| w.name.as_str()).collect();
+    let alpha_worktrees: Vec<_> = groups[0]
+        .worktrees
+        .iter()
+        .map(|w| w.name.as_str())
+        .collect();
     assert_eq!(alpha_worktrees, vec!["wt-ahead", "wt-clean", "wt-dirty"]);
 
     // Every worktree got a verdict from both workers — no row left Pending,
@@ -125,7 +136,10 @@ fn scan_and_enrichment_agree_on_every_worktree() {
     }
 
     // Each activity flavour is classified distinctly.
-    assert_eq!(find(&groups, "alpha", "wt-clean").activity, ActivityState::Clean);
+    assert_eq!(
+        find(&groups, "alpha", "wt-clean").activity,
+        ActivityState::Clean
+    );
     assert_eq!(
         find(&groups, "alpha", "wt-dirty").activity,
         ActivityState::Active(ActiveReason::Dirty)
