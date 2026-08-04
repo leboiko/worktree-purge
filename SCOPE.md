@@ -41,9 +41,28 @@ worktree-purge <folder>
 |------|---------|
 | **Repository** | A directory with a `.git` *directory* (the main checkout) or a bare repo that owns worktrees. |
 | **Worktree** | A *linked* worktree: directory whose `.git` is a **file** pointing at `<repo>/.git/worktrees/<name>`. |
-| **Active** | The worktree holds work that would be lost or is not on a remote: uncommitted changes (including staged + untracked) **or** commits not pushed to any upstream (ahead of `@{u}`, or a branch with no upstream whose commits exist on no remote ref). |
+| **Active** | The worktree holds work that is not safely elsewhere. Two signals, **different severities** (see below): uncommitted changes (staged, unstaged or untracked) **or** commits that exist on no remote. |
 | **Orphaned** | A worktree directory whose back-pointer targets a repo/metadata that no longer exists (still purgeable — it's pure disk waste). |
 | **Size** | Recursive disk usage (allocated blocks, `du`-style) — this is the space the user actually gets back. |
+
+#### The two "active" signals are not equally dangerous
+
+`git worktree remove` deletes the working directory and the
+`.git/worktrees/<name>` metadata. It does **not** delete branches or commits —
+those live in the repository's shared object store and survive removal. So:
+
+- **Dirty (uncommitted changes)** → the work is *destroyed* by purging. git
+  itself refuses to remove a dirty worktree without `--force`, and so do we.
+- **Unpushed commits** → the work *survives* the purge (the branch ref and its
+  commits remain in the owning repo); what the flag really tells you is "this
+  worktree is still in use and its work isn't backed up to a remote."
+
+Both mark a worktree active — showing unpushed work was an explicit product
+requirement — but the UI renders them at different severities (dirty red,
+unpushed yellow) and the confirmation modal states which case applies rather
+than implying everything is about to be lost. Overstating the danger trains
+users to click through the warning, which is exactly what the second
+confirmation gate exists to prevent.
 
 ---
 
