@@ -25,6 +25,37 @@ fn no_such_config() -> PathBuf {
     std::env::temp_dir().join("worktree-purge-fixture-no-global-config")
 }
 
+/// Strip Windows' `\\?\` verbatim prefix, which `canonicalize` adds and git
+/// cannot parse.
+///
+/// Deliberately implemented here rather than reusing the crate's own helper:
+/// fixtures built with the code under test would agree with it even when it is
+/// wrong, and these tests exist to catch exactly that.
+fn undo_verbatim(path: PathBuf) -> PathBuf {
+    if cfg!(windows)
+        && let Some(text) = path.to_str()
+        && let Some(rest) = text.strip_prefix(r"\\?\")
+        && !rest.starts_with("UNC\\")
+    {
+        return PathBuf::from(rest);
+    }
+    path
+}
+
+/// A `file://` URL for a local repository.
+///
+/// Git parses `C:\path\to\repo` with scp-style rules in some contexts and
+/// reports "hostname contains invalid characters", so local remotes are given
+/// as explicit URLs rather than bare paths.
+fn file_url(path: &Path) -> String {
+    let text = path.to_string_lossy().replace('\\', "/");
+    if text.starts_with('/') {
+        format!("file://{text}")
+    } else {
+        format!("file:///{text}")
+    }
+}
+
 /// Run git in `dir`, panicking with full context on failure.
 pub fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")
@@ -79,10 +110,12 @@ impl Fixture {
     /// (which canonicalises too) hold on macOS, where `/var` is a symlink to
     /// `/private/var`.
     pub fn root(&self) -> PathBuf {
-        self.dir
+        let canonical = self
+            .dir
             .path()
             .canonicalize()
-            .unwrap_or_else(|_| self.dir.path().to_path_buf())
+            .unwrap_or_else(|_| self.dir.path().to_path_buf());
+        undo_verbatim(canonical)
     }
 
     pub fn join(&self, rel: &str) -> PathBuf {
@@ -112,7 +145,7 @@ impl Fixture {
         git(&origin, &["init", "--bare", "--quiet"]);
 
         let repo = self.repo(name);
-        repo.git(&["remote", "add", "origin", &origin.to_string_lossy()]);
+        repo.git(&["remote", "add", "origin", &file_url(&origin)]);
         repo.git(&["push", "--quiet", "-u", "origin", "main"]);
         repo
     }

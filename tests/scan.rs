@@ -241,12 +241,21 @@ fn porcelain_keeps_non_branch_refs_intact() {
 fn gitdir_pointers_resolve_absolute_and_relative_targets() {
     let fx = Fixture::new();
 
+    // An absolute target is taken as-is. What counts as absolute is
+    // platform-specific: `/dev/proj` is a *relative* path on Windows, so
+    // hard-coding it there would silently exercise the relative branch below
+    // instead of this one.
+    let absolute_target = if cfg!(windows) {
+        "C:/dev/proj/.git/worktrees/abs"
+    } else {
+        "/dev/proj/.git/worktrees/abs"
+    };
     let absolute = fx.join("abs/.git");
     mkdir(absolute.parent().expect("parent"));
-    write(&absolute, "gitdir: /dev/proj/.git/worktrees/abs\n");
+    write(&absolute, &format!("gitdir: {absolute_target}\n"));
     assert_eq!(
         resolve_gitdir_pointer(&absolute),
-        Some(PathBuf::from("/dev/proj/.git/worktrees/abs"))
+        Some(PathBuf::from(absolute_target))
     );
 
     // Relative targets — how git writes submodule pointers — resolve against

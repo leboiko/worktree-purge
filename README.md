@@ -11,6 +11,25 @@ individually or in batches.
 worktree-purge ~/dev
 ```
 
+```
+┌ worktree-purge ── ~/dev ─────────────────────────────────────────────────────┐
+│ ▼ markdown-reader                          4 worktrees · 1.2 GB · 2 active   │
+│   [x] ● feature-auth              412 MB  uncommitted changes                │
+│   [ ] ● fix-parser                318 MB  unpushed commits          ⚑ 2      │
+│   [ ] ○ old-experiment            290 MB                                     │
+│   [ ] ○ spike-render              214 MB                                     │
+│ ▶ worktree-purge                                     2 worktrees · 84 MB     │
+│ ▼ api-gateway                              3 worktrees · 806 MB · 1 active   │
+│   [ ] ● hotfix-timeout            402 MB  uncommitted changes                │
+│   [ ] ○ chore-deps                289 MB                            [orphan] │
+│   [ ] ⠋ release-2-1                    —                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+ 3 repos · 9 worktrees · 2.1 GB           selected 1 (412 MB)  sort: name  ? help
+```
+
+Red means the work would be **lost**. Yellow means it exists only locally but
+would **survive** removal. The distinction is explained in [Safety](#safety).
+
 ## Why
 
 Linked worktrees are cheap to create and easy to forget. A year of

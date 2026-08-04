@@ -347,3 +347,77 @@ jobs:
             echo "::error::Release $RESOLVED_TAG was created but has zero assets attached. Failing loudly instead of leaving a green run with an empty release." >&2
             exit 1
           fi
+
+  publish-crate:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    # Only after the GitHub Release exists and has been verified to carry
+    # assets. crates.io publishes are irreversible — a version can be yanked
+    # but never replaced — so it goes last, once everything else has proven
+    # itself.
+    needs: [release]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RESOLVED_TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Check for a registry token
+        # A missing token must skip the publish, not fail the release that
+        # already shipped successfully. Secrets cannot be read in a job-level
+        # `if`, so the check happens here and gates the steps below.
+        id: token
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set — skipping the crates.io publish. Add the secret to enable it."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify the tag matches the crate version
+        if: steps.token.outputs.present == 'true'
+        # Publishing a version that disagrees with the tag produces a release
+        # whose binaries and registry entry describe different things.
+        run: |
+          set -euo pipefail
+          manifest=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name=="worktree-purge") | .version')
+          expected=${RESOLVED_TAG#v}
+          echo "tag=$expected manifest=$manifest"
+          if [ "$manifest" != "$expected" ]; then
+            echo "::error::Tag $RESOLVED_TAG implies version $expected but Cargo.toml says $manifest." >&2
+            exit 1
+          fi
+
+      - name: Publish
+        if: steps.token.outputs.present == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
+
+      - name: Verify the version is live on crates.io
+        if: steps.token.outputs.present == 'true'
+        # "cargo publish succeeded" is not the same as "the version is
+        # downloadable" — the index takes a moment to catch up, and a silent
+        # failure here is exactly the kind of thing that only surfaces when a
+        # user runs `cargo install`.
+        run: |
+          set -euo pipefail
+          version=${RESOLVED_TAG#v}
+          for attempt in $(seq 1 20); do
+            if curl -sSf -A "worktree-purge release workflow" \
+                "https://index.crates.io/wo/rk/worktree-purge" \
+              | jq -e --arg v "$version" 'select(.vers == $v)' >/dev/null; then
+              echo "worktree-purge $version is live on crates.io."
+              exit 0
+            fi
+            echo "attempt $attempt: $version not visible yet; waiting."
+            sleep 15
+          done
+          echo "::error::worktree-purge $version never appeared on the crates.io index after publishing." >&2
+          exit 1

@@ -287,16 +287,53 @@ pub fn list_worktrees(dir: &Path) -> Option<Vec<WorktreeEntry>> {
 /// root) fall back to canonicalising the parent, then to a lexical fold.
 pub fn normalize(path: &Path) -> PathBuf {
     if let Ok(resolved) = path.canonicalize() {
-        return resolved;
+        return strip_verbatim(resolved);
     }
     let lexical = lexical_normalize(path);
     match (lexical.parent(), lexical.file_name()) {
         (Some(parent), Some(name)) => match parent.canonicalize() {
-            Ok(parent) => parent.join(name),
+            Ok(parent) => strip_verbatim(parent).join(name),
             Err(_) => lexical,
         },
         _ => lexical,
     }
+}
+
+/// Drop Windows' `\\?\` verbatim prefix from a canonicalised path.
+///
+/// `Path::canonicalize` returns verbatim paths on Windows, and git — which is
+/// MSYS-based there — cannot parse them: handing `\\?\C:\dev\wt` to
+/// `git worktree add`/`remove` fails with exit 128. Since every path this tool
+/// hands to git comes through here, leaving the prefix on would break removal
+/// entirely on Windows, not merely display it oddly.
+///
+/// Only drive paths are simplified. `\\?\UNC\server\share` keeps its prefix,
+/// because stripping it there changes which path is named. The one thing given
+/// up is the verbatim form's exemption from the legacy 260-character limit,
+/// which does not apply to the modern Windows versions this targets.
+#[cfg(windows)]
+fn strip_verbatim(path: PathBuf) -> PathBuf {
+    // Only paths that are valid UTF-8 are touched: a lossy conversion could
+    // silently change the path we later hand to a delete.
+    let Some(text) = path.to_str() else {
+        return path;
+    };
+    let Some(rest) = text.strip_prefix(r"\\?\") else {
+        return path;
+    };
+    let bytes = rest.as_bytes();
+    let is_drive_path =
+        bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && bytes[2] == b'\\';
+    if is_drive_path {
+        PathBuf::from(rest)
+    } else {
+        path
+    }
+}
+
+#[cfg(not(windows))]
+fn strip_verbatim(path: PathBuf) -> PathBuf {
+    path
 }
 
 /// Fold `.` and `..` textually, without touching the filesystem.
@@ -485,5 +522,58 @@ mod tests {
         // A bare repo directory named `proj.git` is not inside a `.git` dir.
         assert!(!is_inside_git_dir(Path::new("/a/proj.git/worktrees")));
         assert!(!is_inside_git_dir(Path::new("/a/b/c")));
+    }
+}
+
+#[cfg(test)]
+mod verbatim_tests {
+    use super::*;
+
+    #[test]
+    #[cfg(windows)]
+    fn a_verbatim_drive_path_loses_its_prefix() {
+        // git cannot parse `\\?\C:\...`, so normalize must never emit one.
+        assert_eq!(
+            strip_verbatim(PathBuf::from(r"\\?\C:\dev\wt")),
+            PathBuf::from(r"C:\dev\wt")
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn a_verbatim_unc_path_keeps_its_prefix() {
+        // Stripping here would change which path is named, so it is left be
+        // even though git cannot use it either.
+        let unc = PathBuf::from(r"\\?\UNC\server\share\wt");
+        assert_eq!(strip_verbatim(unc.clone()), unc);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn an_ordinary_path_is_untouched() {
+        let p = PathBuf::from(r"C:\dev\wt");
+        assert_eq!(strip_verbatim(p.clone()), p);
+    }
+
+    #[test]
+    fn normalize_never_emits_a_verbatim_prefix() {
+        // The property that actually matters, asserted on a real canonicalised
+        // path: whatever the platform hands back, what leaves `normalize` must
+        // be something git can parse. Passes trivially on Unix; on Windows it
+        // fails against a `normalize` that forwards `canonicalize` unchanged.
+        let dir = tempfile::tempdir().expect("temp dir");
+        let nested = dir.path().join("a").join("b");
+        std::fs::create_dir_all(&nested).expect("create dirs");
+
+        let normalized = normalize(&nested);
+        let text = normalized.to_string_lossy();
+        assert!(
+            !text.starts_with(r"\\?\"),
+            "normalize returned a verbatim path git cannot parse: {text}"
+        );
+        assert!(
+            normalized.ends_with("b"),
+            "normalize mangled the path: {text}"
+        );
     }
 }
