@@ -1,0 +1,85 @@
+# cargo-deny configuration
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "aarch64-unknown-linux-musl" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+
+# ---- Advisories ---------------------------------------------------------------
+
+[advisories]
+version = 2
+# Deny crates whose versions have been yanked from the registry.
+yanked = "deny"
+# Scope of the unmaintained check: audit all transitive deps.
+unmaintained = "all"
+# No targeted ignores yet — worktree-purge's dependency tree (ratatui,
+# crossterm, clap, anyhow, ignore, rayon, filesize; dev: insta, tempfile) is
+# small and current as of the crate being scaffolded, with no outstanding
+# RUSTSEC advisories known at write time. If `cargo deny check` surfaces one
+# that can't be upgraded away from, add an entry here citing the upstream
+# blocker (same convention as markdown-reader's deny.toml) so it gets
+# revisited instead of forgotten.
+ignore = []
+
+# ---- Licenses -----------------------------------------------------------------
+
+[licenses]
+version = 2
+# Crates not matching any of these licenses fail the build. Covers the
+# licenses actually used by ratatui, crossterm, clap, anyhow, ignore, rayon,
+# filesize, insta, and tempfile's dependency trees.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+# Require at least 80% confidence when SPDX-matching a license file.
+confidence-threshold = 0.8
+
+# ---- Bans ---------------------------------------------------------------------
+
+[bans]
+# Warn if multiple versions of the same crate end up in the graph.
+multiple-versions = "warn"
+# Wildcards in Cargo.toml are a red flag.
+wildcards = "deny"
+# Highlight the worst offender when a feature pulls extra deps.
+highlight = "all"
+
+deny = [
+    # Prefer rustls; openssl-sys pulls in a large C dependency. Nothing in
+    # worktree-purge's dependency graph needs TLS today, but this is a
+    # no-cost guard against a future dependency (e.g. a version-check HTTP
+    # client) accidentally dragging in OpenSSL instead of rustls.
+    { name = "openssl-sys", reason = "use rustls instead of openssl" },
+    { name = "openssl", reason = "use rustls instead of openssl" },
+    { name = "native-tls", reason = "use rustls instead of native-tls" },
+]
+
+skip = []
+skip-tree = []
+
+# ---- Sources ------------------------------------------------------------------
+
+[sources]
+# Only allow crates.io as a registry source.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
