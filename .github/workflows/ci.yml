@@ -82,7 +82,11 @@ jobs:
           git config --global user.name "CI"
           git config --global user.email "ci@example.com"
           git config --global init.defaultBranch main
-      - run: cargo test
+        # --no-fail-fast so a failure in one test binary does not hide the
+        # results of the others. Without it cargo stops at the first failing
+        # target, which turns a platform-specific problem into one fix per CI
+        # round-trip instead of one round-trip for all of them.
+      - run: cargo test --no-fail-fast
 
   deny:
     name: cargo-deny

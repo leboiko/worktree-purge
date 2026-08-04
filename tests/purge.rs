@@ -351,9 +351,16 @@ fn the_guard_refuses_dangerous_orphan_paths_instead_of_deleting_them() {
          validated"
     );
 
-    // And the filesystem is intact.
+    // And the filesystem is intact. The system directory differs per platform;
+    // `/usr` simply does not exist on Windows, so asserting it there would fail
+    // for a reason that has nothing to do with the guard.
     assert!(is_dir(Path::new("/")), "the filesystem root must survive");
-    assert!(is_dir(Path::new("/usr")), "/usr must survive");
+    let system_dir = if cfg!(windows) {
+        Path::new(r"C:\Windows")
+    } else {
+        Path::new("/usr")
+    };
+    assert!(is_dir(system_dir), "{} must survive", system_dir.display());
     assert!(
         std::env::current_dir().is_ok(),
         "the current directory must survive"
@@ -363,8 +370,11 @@ fn the_guard_refuses_dangerous_orphan_paths_instead_of_deleting_them() {
     assert!(purge::guard_orphan_path(Path::new("relative/wt")).is_err());
     assert!(purge::guard_orphan_path(Path::new("/a/b/../../..")).is_err());
 
-    // The user's home directory, whatever it is on this machine.
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from)
+    // The user's home directory, whatever it is on this machine. Read from the
+    // same variable the guard itself uses, or this silently tests nothing on
+    // Windows — where `HOME` is often unset and `USERPROFILE` is the real one.
+    let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    if let Some(home) = std::env::var_os(home_var).map(PathBuf::from)
         && home.is_absolute()
     {
         assert!(
@@ -400,7 +410,17 @@ fn the_guard_refuses_a_symlink_and_spares_its_target() {
     #[cfg(unix)]
     std::os::unix::fs::symlink(&treasure, &link).expect("create symlink");
     #[cfg(windows)]
-    std::os::windows::fs::symlink_dir(&treasure, &link).expect("create symlink");
+    {
+        // Creating a symlink on Windows needs SeCreateSymbolicLinkPrivilege
+        // (admin, or Developer Mode). Where that is unavailable there is no way
+        // to stage the scenario at all, so skip rather than report a guard
+        // failure for an environmental reason. The Unix path stays strict, so
+        // the rule is never left entirely unverified.
+        if let Err(e) = std::os::windows::fs::symlink_dir(&treasure, &link) {
+            eprintln!("skipping: cannot create a symlink on this host ({e})");
+            return;
+        }
+    }
 
     let outcome = purge::purge_one(&orphan_item(&link), true);
 

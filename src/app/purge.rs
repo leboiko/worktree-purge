@@ -355,6 +355,10 @@ mod tests {
         pub const INSIDE_HOME: &str = "/home/tester/code/wt-feature";
         /// Absolute on the *other* platform, and so not absolute here.
         pub const FOREIGN_ABSOLUTE: &str = r"C:\Users\tester\wt";
+        /// One `Normal` component below the root: too shallow.
+        pub const DEPTH_ONE: &str = "/wt";
+        /// Two `Normal` components: the shallowest allowed depth.
+        pub const DEPTH_TWO: &str = "/a/wt";
     }
 
     #[cfg(windows)]
@@ -369,6 +373,11 @@ mod tests {
         pub const INSIDE_HOME: &str = r"C:\Users\tester\code\wt-feature";
         /// Absolute on the *other* platform, and so not absolute here.
         pub const FOREIGN_ABSOLUTE: &str = "/home/tester/wt";
+        /// One `Normal` component below the root: too shallow. The `C:` prefix
+        /// is a `Component::Prefix`, not a `Normal`, so it does not count.
+        pub const DEPTH_ONE: &str = r"C:\wt";
+        /// Two `Normal` components: the shallowest allowed depth.
+        pub const DEPTH_TWO: &str = r"C:\a\wt";
     }
 
     /// Deterministic home for the home-directory rules; the real home
@@ -528,8 +537,9 @@ mod tests {
     #[test]
     fn depth_is_counted_below_the_root_not_including_it() {
         // One component: refused. Two: allowed. This pins MIN_ORPHAN_DEPTH so
-        // widening it silently is not possible.
-        assert!(dangerous_reason(Path::new("/wt"), None).is_some());
-        assert!(dangerous_reason(Path::new("/a/wt"), None).is_none());
+        // widening it silently is not possible. The drive prefix on Windows is
+        // not a `Normal` component, so the counts line up on both platforms.
+        assert!(dangerous_reason(Path::new(samples::DEPTH_ONE), None).is_some());
+        assert!(dangerous_reason(Path::new(samples::DEPTH_TWO), None).is_none());
     }
 }
