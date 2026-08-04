@@ -113,10 +113,12 @@ confirmation gate exists to prevent.
       worktree).
 - [x] **Windows: full tier — binaries shipped AND CI-tested.**
       `windows-latest` joins the CI test matrix; the release workflow ships
-      the `.zip` like markdown-reader. Implementation note: disk-usage code
-      needs a Windows path (no `st_blocks` — use allocated-size via
-      `GetCompressedFileSize`/file len fallback) and the fixture tests must
-      be path-separator clean.
+      the `.zip` like markdown-reader. Resolved in implementation: disk usage
+      goes through the `filesize` crate, which provides the allocated-size
+      call on every platform, so no `st_blocks`/`GetCompressedFileSize` split
+      was needed. The first CI run caught two genuine Windows issues —
+      fixtures pointing git config at `/dev/null`, and guard tests hard-coding
+      Unix paths (`/Users` is not absolute on Windows) — both now fixed.
 
 ---
 
@@ -188,80 +190,84 @@ struct Worktree {
 ## 4. Milestones
 
 ### M0 — Scaffolding & repo hygiene
-- [ ] `cargo init` (edition 2024), binary name `worktree-purge`
-- [ ] Dependencies (latest at implementation time — verify with `cargo add`):
+- [x] `cargo init` (edition 2024), binary name `worktree-purge`
+- [x] Dependencies (latest at implementation time — verify with `cargo add`):
       `ratatui`, `crossterm`, `clap` (derive), `anyhow`, `ignore`, `rayon`;
       dev: `insta`, `tempfile`
-- [ ] `git init` + first commit; create GitHub repo `leboiko/worktree-purge`
+- [x] `git init` + first commit; create GitHub repo `leboiko/worktree-purge`
       (public, MIT) mirroring markdown-reader's setup
-- [ ] Community files: `LICENSE` (MIT), `README.md` (stub), `CHANGELOG.md`,
+- [x] Community files: `LICENSE` (MIT), `README.md` (stub), `CHANGELOG.md`,
       `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`,
       `.github/ISSUE_TEMPLATE/*`, PR template, `dependabot.yml`
-- [ ] CI workflow (port from markdown-reader): rustfmt, clippy `-D warnings`
+- [x] CI workflow (port from markdown-reader): rustfmt, clippy `-D warnings`
       (ubuntu + macos + windows), tests (stable + MSRV floor, all three
       OSes), `cargo deny check` (`deny.toml`)
 
 ### M1 — Scanner
-- [ ] Parallel walk with prune-on-hit; classify `.git` dir vs file
-- [ ] Resolve worktree → owning repo via `gitdir:` back-pointer
-- [ ] Per-repo `git worktree list --porcelain` merge (catches out-of-root
+- [x] Parallel walk with prune-on-hit; classify `.git` dir vs file
+- [x] Resolve worktree → owning repo via `gitdir:` back-pointer
+- [x] Per-repo `git worktree list --porcelain` merge (catches out-of-root
       worktrees; authoritative branch names)
-- [ ] Handle: bare repos, orphaned worktrees, nested repos/submodules
+- [x] Handle: bare repos, orphaned worktrees, nested repos/submodules
       (submodule checkouts are NOT listed as worktrees), scan root itself
       being a repo, permission-denied dirs (skip + count, don't crash)
-- [ ] Integration tests against fixture repos built in `tempfile` dirs
+- [x] Integration tests against fixture repos built in `tempfile` dirs
       (real `git` invocations): multi-repo, orphan, out-of-root, bare,
       submodule-containing — not just the happy path
 
 ### M2 — Status & size enrichment
-- [ ] Background worker pool; results streamed to UI via channel
-- [ ] Active detection: dirty (`git status --porcelain=v2` incl. untracked),
+- [x] Background worker pool; results streamed to UI via channel
+- [x] Active detection: dirty (`git status --porcelain=v2` incl. untracked),
       unpushed (`rev-list @{u}..HEAD`; no-upstream → check unique commits vs
       all remote refs)
-- [ ] Disk-usage computation (allocated blocks on unix via `st_blocks`;
+- [x] Disk-usage computation (allocated blocks on unix via `st_blocks`;
       Windows path via allocated size with file-len fallback; linked
       worktrees share the object store, so size = working-tree files +
       private metadata only)
-- [ ] Stash-count hint: one `git stash list` per repo, entries mapped to
+- [x] Stash-count hint: one `git stash list` per repo, entries mapped to
       worktrees by branch name (info only — never blocks purge)
-- [ ] Tests: each active-reason permutation, size correctness vs `du -sk`
+- [x] Tests: each active-reason permutation, size correctness vs `du -sk`
       tolerance on a fixture tree
 
 ### M3 — TUI
-- [ ] Tree view with expand/collapse per repo; cursor navigation
-- [ ] Selection: per-item, per-repo, global; selection survives
+- [x] Tree view with expand/collapse per repo; cursor navigation
+- [x] Selection: per-item, per-repo, global; selection survives
       expand/collapse and rescan-by-path where possible
-- [ ] Indicators (active/orphan) + stash-count hint on rows, progressive
+- [x] Indicators (active/orphan) + stash-count hint on rows, progressive
       spinners for pending size/status
-- [ ] Status bar totals + selected-size live sum; sort cycling
-- [ ] Help overlay
-- [ ] Snapshot tests with `insta` + ratatui `TestBackend` — assert exact
+- [x] Status bar totals + selected-size live sum; sort cycling
+- [x] Help overlay
+- [x] Snapshot tests with `insta` + ratatui `TestBackend` — assert exact
       row content/positions (per testing rules: no assertion a no-op
       implementation could satisfy)
 
 ### M4 — Purge
-- [ ] Purge planner: selected worktrees → per-repo `git worktree remove`
+- [x] Purge planner: selected worktrees → per-repo `git worktree remove`
       batches + orphan deletions
-- [ ] Confirmation modal (list, sizes, total reclaimed); separate hard
+- [x] Confirmation modal (list, sizes, total reclaimed); separate hard
       confirmation for active worktrees (`--force` path)
-- [ ] Execution off the UI thread with per-item progress + result modal
+- [x] Execution off the UI thread with per-item progress + result modal
       (successes, failures with stderr excerpt)
-- [ ] `git worktree prune` per touched repo; list refresh; freed-space toast
-- [ ] Tests: purge clean, purge active w/ force, purge orphan, purge failure
+- [x] `git worktree prune` per touched repo; list refresh; freed-space toast
+- [x] Tests: purge clean, purge active w/ force, purge orphan, purge failure
       (locked worktree / permission denied) — assert the worktree is
       *actually gone* from both disk and `git worktree list`
 
 ### M5 — Polish & release
-- [ ] README: features, install (cargo install + prebuilt binaries), usage,
-      keybindings table, screenshots/GIF (VHS or asciinema)
-- [ ] Release workflow (port from markdown-reader): tag-driven, per-platform
+- [x] README: features, install (cargo install + prebuilt binaries), usage,
+      keybindings table
+- [ ] Screenshots/GIF (VHS or asciinema) — README currently has no imagery
+- [x] Release workflow (port from markdown-reader): tag-driven, per-platform
       archives (linux gnu/musl x86_64+aarch64, macOS x86_64+aarch64,
-      windows), SHA256SUMS
+      windows), SHA256SUMS, with hard-fail guards on a zero/partial artifact set
+- [x] Public GitHub repo created and pushed; CI green across Linux/macOS/Windows
 - [ ] `v0.1.0` tag → **verify artifacts actually landed** on the Releases
       page (not just "workflow green")
 - [ ] crates.io publish (name confirmed available 2026-08-04) + verify the
-      listed version actually appears on the registry
-- [ ] ROADMAP.md seeded with v2 ideas (below)
+      listed version actually appears on the registry.
+      **Note:** `release.yml` has no `publish-crate` job yet — either add one
+      (see ROADMAP) or publish manually.
+- [x] ROADMAP.md seeded with v2 ideas (below)
 
 ---
 
