@@ -336,15 +336,51 @@ fn home_dir() -> Option<PathBuf> {
 mod tests {
     use super::*;
 
-    /// Deterministic home for the home-directory rules; the real `$HOME`
-    /// varies per machine and cannot be set safely from a threaded test.
+    /// Sample paths for the guard's rules, per platform.
+    ///
+    /// `dangerous_reason` reasons about *absolute* paths, and the platforms
+    /// disagree about what that means: `/Users` is absolute on Unix but merely
+    /// relative on Windows, where a drive prefix is required. Hard-coding Unix
+    /// paths would therefore test the relative-path rule on Windows and leave
+    /// the depth and home rules unexercised there.
+    #[cfg(not(windows))]
+    mod samples {
+        pub const ROOT: &str = "/";
+        pub const TOP_LEVEL: &[&str] = &["/Users", "/home", "/tmp", "/var", "/opt", "/etc"];
+        pub const HOME: &str = "/home/tester";
+        pub const DEEP_HOME: &str = "/mnt/users/tester";
+        pub const HOME_ANCESTOR: &str = "/mnt/users";
+        pub const ESCAPING: &str = "/data/worktrees/../../..";
+        pub const PLAUSIBLE: &str = "/data/wt";
+        pub const INSIDE_HOME: &str = "/home/tester/code/wt-feature";
+        /// Absolute on the *other* platform, and so not absolute here.
+        pub const FOREIGN_ABSOLUTE: &str = r"C:\Users\tester\wt";
+    }
+
+    #[cfg(windows)]
+    mod samples {
+        pub const ROOT: &str = r"C:\";
+        pub const TOP_LEVEL: &[&str] = &[r"C:\Users", r"C:\Windows", r"C:\Temp", r"C:\ProgramData"];
+        pub const HOME: &str = r"C:\Users\tester";
+        pub const DEEP_HOME: &str = r"D:\mnt\users\tester";
+        pub const HOME_ANCESTOR: &str = r"D:\mnt\users";
+        pub const ESCAPING: &str = r"C:\data\worktrees\..\..\..";
+        pub const PLAUSIBLE: &str = r"D:\data\wt";
+        pub const INSIDE_HOME: &str = r"C:\Users\tester\code\wt-feature";
+        /// Absolute on the *other* platform, and so not absolute here.
+        pub const FOREIGN_ABSOLUTE: &str = "/home/tester/wt";
+    }
+
+    /// Deterministic home for the home-directory rules; the real home
+    /// directory varies per machine and cannot be set safely from a threaded
+    /// test.
     fn home() -> &'static Path {
-        Path::new("/home/tester")
+        Path::new(samples::HOME)
     }
 
     #[test]
     fn filesystem_root_is_refused() {
-        let reason = dangerous_reason(Path::new("/"), Some(home()))
+        let reason = dangerous_reason(Path::new(samples::ROOT), Some(home()))
             .expect("the filesystem root must never be deletable");
         assert!(
             reason.contains("too close to the filesystem root"),
@@ -354,7 +390,7 @@ mod tests {
 
     #[test]
     fn top_level_directories_are_refused() {
-        for p in ["/Users", "/home", "/tmp", "/var", "/opt", "/etc"] {
+        for p in samples::TOP_LEVEL {
             let reason = dangerous_reason(Path::new(p), Some(home()))
                 .unwrap_or_else(|| panic!("{p} must not be deletable"));
             assert!(
@@ -370,7 +406,10 @@ mod tests {
         // fails if that rule is dropped.
         assert_eq!(
             dangerous_reason(home(), Some(home())),
-            Some("refusing to delete /home/tester: that is the home directory".to_string())
+            Some(format!(
+                "refusing to delete {}: that is the home directory",
+                samples::HOME
+            ))
         );
     }
 
@@ -378,8 +417,8 @@ mod tests {
     fn a_directory_containing_home_is_refused() {
         // Catches a home laid out more deeply than the depth rule protects,
         // e.g. `/mnt/users` when home is `/mnt/users/tester`.
-        let deep_home = Path::new("/mnt/users/tester");
-        let reason = dangerous_reason(Path::new("/mnt/users"), Some(deep_home))
+        let deep_home = Path::new(samples::DEEP_HOME);
+        let reason = dangerous_reason(Path::new(samples::HOME_ANCESTOR), Some(deep_home))
             .expect("an ancestor of home must not be deletable");
         assert!(
             reason.contains("contains the home directory"),
@@ -389,7 +428,7 @@ mod tests {
 
     #[test]
     fn parent_dir_components_are_refused() {
-        let reason = dangerous_reason(Path::new("/data/worktrees/../../.."), Some(home()))
+        let reason = dangerous_reason(Path::new(samples::ESCAPING), Some(home()))
             .expect("a path that can walk out of its tree must not be deletable");
         assert!(
             reason.contains("'..'"),
@@ -408,19 +447,37 @@ mod tests {
     }
 
     #[test]
+    fn a_path_absolute_only_on_another_platform_is_refused() {
+        // A Windows path handed to a Unix build (or the reverse) is not
+        // absolute here, so it must fall to the relative-path rule rather than
+        // being measured for depth against components this platform cannot
+        // interpret. Pins the fail-safe direction of a genuine cross-platform
+        // difference instead of leaving it to chance.
+        let reason = dangerous_reason(Path::new(samples::FOREIGN_ABSOLUTE), Some(home()))
+            .expect("a path this platform cannot resolve must not be deletable");
+        assert!(
+            reason.contains("relative"),
+            "expected the relative-path rule to fire, got: {reason}"
+        );
+    }
+
+    #[test]
     fn a_plausible_worktree_path_is_allowed() {
         // The guard has to say yes to something, or the orphan path is dead
         // code and every other refusal test is trivially satisfied.
-        assert_eq!(dangerous_reason(Path::new("/data/wt"), Some(home())), None);
         assert_eq!(
-            dangerous_reason(Path::new("/home/tester/code/wt-feature"), Some(home())),
+            dangerous_reason(Path::new(samples::PLAUSIBLE), Some(home())),
+            None
+        );
+        assert_eq!(
+            dangerous_reason(Path::new(samples::INSIDE_HOME), Some(home())),
             None
         );
     }
 
     #[test]
     fn a_missing_home_does_not_block_a_legitimate_delete() {
-        assert_eq!(dangerous_reason(Path::new("/data/wt"), None), None);
+        assert_eq!(dangerous_reason(Path::new(samples::PLAUSIBLE), None), None);
     }
 
     // `verify_removed` is exercised directly because its failure branch is
