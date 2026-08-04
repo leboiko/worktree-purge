@@ -1,0 +1,13 @@
+---
+source: tests/ui_snapshot.rs
+expression: term.backend()
+---
+"┌ worktree-purge ── /home/dev ─┐"
+"│ ▼ markdown-reader            █"
+"│   [ ] ● feature-au…  412 MB  █"
+"│   [ ] ● fix-parser   318 MB  █"
+"│   [ ] ○ old-experi…  690 MB  │"
+"│ ▼ worktree-purge             │"
+"│   [ ] ⠋ release-pr…       —  │"
+"└──────────────────────────────┘"
+" 2 repos · … sort: name  ? help "

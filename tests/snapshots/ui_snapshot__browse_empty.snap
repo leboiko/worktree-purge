@@ -1,0 +1,12 @@
+---
+source: tests/ui_snapshot.rs
+expression: term.backend()
+---
+"┌ worktree-purge ── /home/dev ─────────────────────────────┐"
+"│            no linked worktrees under /home/dev           │"
+"│                                                          │"
+"│                                                          │"
+"│                                                          │"
+"│                                                          │"
+"└──────────────────────────────────────────────────────────┘"
+" 0 repos · 0 worktrees · 0 B             sort: name  ? help "

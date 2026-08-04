@@ -1,0 +1,24 @@
+---
+source: tests/ui_snapshot.rs
+expression: term.backend()
+---
+"┌ worktree-purge ── /home/dev ───────────────────────────────────────────────┐"
+"│ ▼ markdown-reader                           3 worktrees · 1.4 GB · 2 active│"
+"│   [x] ● feature-auth              412 MB  uncommitted changes              │"
+"│   [ ] ● fix-parser                318 MB  unpushed commits ⚑ 2             │"
+"│   [x] ○ old-experiment            690 MB                                   │"
+"│ ▼ wo╭ 1 worktree holds work ────────────────────────────────────────╮ 12 MB│"
+"│   [ │  feature-auth                     412 MB  force               │]     │"
+"│   [ │                                                               │      │"
+"│     │  Uncommitted changes in these worktrees are destroyed.        │      │"
+"│     │  Commits and branches are not — they stay in the repository.  │      │"
+"│     │                                                               │      │"
+"│     │  Press [F] to force-remove    [Esc] cancel                    │      │"
+"│     │  (y and Enter do nothing here — this gate is deliberate)      │      │"
+"│     ╰───────────────────────────────────────────────────────────────╯      │"
+"│                                                                            │"
+"│                                                                            │"
+"│                                                                            │"
+"│                                                                            │"
+"└────────────────────────────────────────────────────────────────────────────┘"
+" 2 repos · 5 worktrees · 1.4 GB      selected 2 (1.1 GB)   sort: name  ? help "

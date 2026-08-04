@@ -121,8 +121,10 @@ pub(crate) fn status_line(state: &AppState, total: usize) -> Line<'static> {
         spans
     } else if rw < total {
         // Not enough room for both: the hints are the shorter, more actionable
-        // half, so they win and the totals get clipped.
-        let mut spans = fit(left, total - rw);
+        // half, so they win and the totals get clipped. One column is held back
+        // so the clipped text never runs straight into "sort:".
+        let mut spans = fit(left, total - rw - 1);
+        spans.push(Span::raw(" "));
         spans.extend(right);
         spans
     } else {

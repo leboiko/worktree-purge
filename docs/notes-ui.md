@@ -30,9 +30,15 @@ re-deriving the invariants.
 Overlays are drawn over the **whole** frame area, not the tree area, so a modal
 can be taller than the tree region on a short terminal.
 
-`ui::draw` returns early when the frame is 0×0. Every renderer re-checks its own
-`Rect` before writing, and `centered_rect` clamps to the parent, so a 1×1
-terminal renders (almost) nothing rather than panicking.
+`ui::draw` returns early when the frame is 0×0, and drops the tree entirely when
+only one row is left (the totals are more useful than a clipped border). Every
+renderer re-checks its own `Rect` before writing, and `ui::centered` clamps to
+the parent, so a 1×1 terminal renders almost nothing rather than panicking —
+`tiny_rects_render_without_panicking` walks that grid for every mode.
+
+When there is nothing to show, the tree area renders `no linked worktrees under
+<root>` (or `scanning…` while enrichment is still running) instead of an empty
+box.
 
 ### Scrolling
 
@@ -44,6 +50,15 @@ that keeps the cursor visible, then writes `list_state.offset()` back into
 `&mut AppState` — the scroll offset is the one piece of view state that only the
 renderer knows the viewport height for. Everything else in `ui` is a pure
 function of `&AppState`.
+
+**Signature note for the caller:** the stub had `ui::draw(&mut Frame, &AppState)`
+and `ui::tree::render(&mut Frame, Rect, &mut AppState)`, which cannot both be
+true. `ui::draw` now takes `&mut AppState`. `main.rs` is unaffected — it already
+passes a `&mut AppState`.
+
+When the row count exceeds the viewport, a scrollbar is drawn **over the block's
+right border**, so it costs no content width and the row geometry below is the
+same scrolled or not.
 
 ---
 
@@ -67,8 +82,10 @@ leading space (column 0 of the block interior)
 * Size is `format::bytes(group.known_size())` — **known sizes only**, so the
   number never over-promises reclaimable space.
 * Orphan buckets additionally carry `[orphan]` next to the name.
-* When left + right do not both fit, the aggregate is dropped first, then the
-  name is truncated with `…`.
+* When left + right do not both fit, the aggregate is dropped **first**, then
+  the name is truncated with `…`. Concretely, the aggregate is shown only when
+  the name still gets `min(len(name), HEADER_NAME_MIN = 16)` columns: knowing
+  *which* repository you are looking at beats knowing its totals.
 
 ### Worktree row — `RowRef::Worktree`
 
@@ -86,7 +103,8 @@ Fixed geometry (`ui::tree`):
 | Constant | Value | Meaning |
 |----------|-------|---------|
 | `WT_PREFIX_W` | 9 | `"   [x] ● "` |
-| `NAME_W` | 24 | name field when the terminal is wide enough; shrinks on narrow terminals, floor 4 |
+| `NAME_W` | 24 | name field when the terminal is wide enough |
+| `NAME_MIN` | 4 | floor for the name field on narrow terminals |
 | `SIZE_W` | 8 | right-aligned size column (`"1023 PB"` is the widest `format::bytes` output) |
 | `GAP` | 2 | between the size column and the reason text |
 
@@ -107,6 +125,9 @@ The glyph carries a real severity distinction; do not collapse these.
 | `Clean` | `○` | dark gray + `DIM` | — | proven safe |
 | `Pending` | spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`, `spinner_tick % 10`) | cyan | `checking…` | not checked **yet** |
 | `Unknown` | `?` | magenta | `status unknown` | the check **failed** |
+
+Colour constants live in `ui::mod` (`C_DIRTY`, `C_UNPUSHED`, …) so a change is a
+one-line edit rather than a hunt through three renderers.
 
 `Pending` and `Unknown` are deliberately *not* dim-and-quiet: both are unsafe
 (`ActivityState::needs_force()` is true for them) and magenta/cyan keep them
@@ -166,6 +187,16 @@ testable without a disk.
    sum `SizeState::bytes()`, skipping `Pending` and `Unknown`. We under-promise
    reclaimable space; we never guess.
 
+### Sort orders
+
+| Mode | Groups | Worktrees |
+|------|--------|-----------|
+| `Name` | name (case-insensitive) | name |
+| `SizeDesc` | `known_size()` desc | size desc, **unknown last** — an unmeasured worktree is not "small", it is unmeasured |
+| `ActiveFirst` | `active_count()` desc | `Both` → `Dirty` → `Unpushed` → `Unknown` → `Pending` → `Clean` |
+
+Every comparison falls back to the name so the order is total and stable.
+
 ---
 
 ## 4. Selection semantics
@@ -179,6 +210,24 @@ testable without a disk.
 
 `a` and `A` are toggles rather than pure "select all" so there is always a
 one-key way back out of an over-broad selection.
+
+Navigation extras beyond the spec table, all inert inside a modal:
+`Home`/`End` (same as `g`/`G`), `PageUp`/`PageDown` (±10 rows), and `Ctrl-C`,
+which quits from **any** mode including a confirmation gate.
+
+`←`/`h` on a *child* row walks up to its header rather than collapsing the group
+out from under the cursor; on a header it collapses. `→`/`l` expands a collapsed
+header and steps into an already-expanded one. `Enter` toggles the group the
+cursor is in, matching the SCOPE keybinding table.
+
+## 4b. Status bar
+
+`" N repos · M worktrees · <total>"` on the left (plus a spinner while
+enrichment runs, a `· N skipped` warning, and the toast), `selected N (size) ·
+sort: <mode> · ? help` on the right, padded apart to fill the width exactly.
+When both halves cannot fit, the **hints win** and the totals are clipped with
+`…` — the hints are shorter and more actionable. One column is always held back
+so the clipped text never runs straight into `sort:`.
 
 ---
 
@@ -223,6 +272,12 @@ and branches are not.
 `Mode::Purging` swallows every key — there is no cancel once `git worktree
 remove` is running, and pretending otherwise would be a lie.
 
+The two gate keys are exported as `events::CONFIRM_KEY` (`'y'`) and
+`events::FORCE_KEY` (`'F'`), and both modals *and* the help overlay render them
+from those constants, so the UI can never advertise a key the handler does not
+honour. `the_force_modal_matches_the_behaviour_it_advertises` asserts exactly
+that.
+
 ---
 
 ## 6. Testing strategy
@@ -243,3 +298,16 @@ trivially-broken implementation. Concretely that means pinning exact cell
 content at exact positions, comparing row counts before/after a mutation, or
 diffing against a baseline render taken without the feature — never
 `output.contains('●')`, since `●`, `─` and `│` all show up in unrelated chrome.
+
+Two helpers in `tests/ui_snapshot.rs` exist purely to keep assertions honest:
+
+* `modal_text()` extracts only what is *inside* the rounded overlay box. Without
+  it, "the force gate does not list the clean worktree" would pass or fail on
+  whether the browse view behind the modal happened to mention that name.
+* `cols()` (in `ui::tree`'s unit tests) slices by display column, not by byte —
+  `●`, `○`, `—` and `…` are all multi-byte, so byte slicing both panics and
+  silently misaligns.
+
+Column constants used by the cell assertions, for the 78×N fixture:
+`ARROW_X = 2` (repo arrow), `CHECK_X = 5` (checkbox marker),
+`GLYPH_X = 8` (activity glyph).

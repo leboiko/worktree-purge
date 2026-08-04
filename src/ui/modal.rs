@@ -78,8 +78,9 @@ fn confirm_body(plan: &PurgePlan) -> Vec<Line<'static>> {
         lines.push(Line::raw(""));
         lines.push(Line::from(Span::styled(
             format!(
-                "  {} marked ! hold work — you will be asked again",
-                format::count_noun(forced, "worktree")
+                "  {} marked ! {} work — you will be asked again",
+                format::count_noun(forced, "worktree"),
+                if forced == 1 { "holds" } else { "hold" }
             ),
             Style::new().fg(C_DANGER),
         )));
@@ -251,10 +252,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
             frame,
             area,
             title_span(
-                format!(
-                    "{} hold work",
-                    format::count_noun(plan.force_items().count(), "worktree")
-                ),
+                {
+                    let n = plan.force_items().count();
+                    format!(
+                        "{} {} work",
+                        format::count_noun(n, "worktree"),
+                        if n == 1 { "holds" } else { "hold" }
+                    )
+                },
                 C_DANGER,
             ),
             C_DANGER,
@@ -330,8 +335,7 @@ mod tests {
         };
         let body = joined(&confirm_body(&plan));
         assert!(
-            body.contains("1 worktree marked ! holds work — you will be asked again")
-                || body.contains("1 worktree marked ! hold work — you will be asked again"),
+            body.contains("1 worktree marked ! holds work — you will be asked again"),
             "{body}"
         );
         assert!(

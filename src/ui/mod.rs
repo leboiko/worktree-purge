@@ -134,3 +134,75 @@ pub fn draw(frame: &mut Frame, state: &mut AppState) {
         _ => modal::render(frame, area, state),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn width_uses_display_columns_not_bytes() {
+        // Every glyph the tree renders is one column wide even though several
+        // are multi-byte; the row geometry depends on that.
+        for glyph in ["●", "○", "⠋", "…", "—", "▼", "▶", "⚑"] {
+            assert_eq!(width(glyph), 1, "{glyph} should be one column");
+            assert!(glyph.len() > 1, "{glyph} should be multi-byte");
+        }
+        assert_eq!(width("abc"), 3);
+    }
+
+    #[test]
+    fn truncate_marks_the_cut_and_never_exceeds_the_budget() {
+        assert_eq!(truncate("hello", 10), "hello");
+        assert_eq!(truncate("hello", 5), "hello");
+        assert_eq!(truncate("hello", 4), "hel…");
+        assert_eq!(truncate("hello", 1), "…");
+        assert_eq!(truncate("hello", 0), "");
+        for max in 0..8 {
+            assert!(width(&truncate("abcdefg", max)) <= max, "max {max}");
+        }
+    }
+
+    #[test]
+    fn truncate_does_not_split_a_multi_byte_glyph() {
+        let s = "●●●●●";
+        assert_eq!(truncate(s, 3), "●●…");
+        assert!(truncate(s, 3).is_char_boundary(truncate(s, 3).len()));
+    }
+
+    #[test]
+    fn padding_produces_exactly_the_requested_field() {
+        assert_eq!(pad_to("ab", 5), "ab   ");
+        assert_eq!(pad_to("abcdef", 4), "abc…");
+        assert_eq!(width(&pad_to("abcdef", 4)), 4);
+        assert_eq!(pad_left("1 KB", 8), "    1 KB");
+        assert_eq!(width(&pad_left("1 KB", 8)), 8);
+        assert_eq!(width(&pad_left("a-very-long-value", 6)), 6);
+    }
+
+    #[test]
+    fn centered_always_fits_inside_the_parent() {
+        let area = Rect::new(0, 0, 80, 24);
+        let r = centered(area, 40, 10);
+        assert_eq!((r.x, r.y, r.width, r.height), (20, 7, 40, 10));
+
+        // Oversized requests are clamped rather than overflowing.
+        let tiny = Rect::new(3, 4, 5, 2);
+        let r = centered(tiny, 100, 100);
+        assert_eq!((r.x, r.y, r.width, r.height), (3, 4, 5, 2));
+        assert!(r.right() <= tiny.right() && r.bottom() <= tiny.bottom());
+
+        // Zero-sized parents produce zero-sized children, not panics.
+        let empty = Rect::new(0, 0, 0, 0);
+        assert_eq!(centered(empty, 10, 10), Rect::new(0, 0, 0, 0));
+    }
+
+    #[test]
+    fn the_spinner_wraps_instead_of_indexing_out_of_range() {
+        assert_eq!(spinner_frame(0), SPINNER[0]);
+        assert_eq!(spinner_frame(SPINNER.len()), SPINNER[0]);
+        assert_eq!(
+            spinner_frame(usize::MAX),
+            SPINNER[usize::MAX % SPINNER.len()]
+        );
+    }
+}
