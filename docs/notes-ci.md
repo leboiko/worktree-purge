@@ -1,8 +1,7 @@
 # CI / release notes
 
 Working notes on what was ported from
-[`markdown-reader`](https://github.com/leboiko/markdown-reader) (reference at
-`/Users/leboiko/Documents/temp/temp2/temp3/markdown-reader`), what was
+[`markdown-reader`](https://github.com/leboiko/markdown-reader), what was
 adapted, and what didn't translate. Written before the workflows themselves
 so the reasoning is on record, not reconstructed after the fact.
 

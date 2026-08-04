@@ -277,7 +277,7 @@ struct Worktree {
 
 ## 6. Reference
 
-- Conventions source: `/Users/leboiko/Documents/temp/temp2/temp3/markdown-reader`
+- Conventions source: the author's [markdown-reader](https://github.com/leboiko/markdown-reader)
   (CI matrix, release pipeline, community files, ROADMAP/CHANGELOG discipline)
 - git worktree docs: https://git-scm.com/docs/git-worktree
   (`list --porcelain`, `remove`, `prune`, lock semantics)
