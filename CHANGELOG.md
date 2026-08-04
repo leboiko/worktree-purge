@@ -34,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   code, and one failure never aborts the rest of a batch.
 - Cross-platform CI (Linux, macOS, Windows) on stable and the 1.88 MSRV, plus a
   tag-driven release pipeline that fails loudly rather than publishing a
-  release with missing artifacts.
+  release with missing artifacts, and a crates.io publish job that verifies the
+  version is actually live on the registry afterwards.
+
+### Fixed
+
+- **Worktree removal on Windows.** Paths were passed to git in
+  `canonicalize`'s verbatim form (`\\?\C:\...`), which git on Windows cannot
+  parse — every removal would have failed with exit 128. See
+  `docs/notes-windows.md`.
 
 [Unreleased]: https://github.com/leboiko/worktree-purge/commits/master
