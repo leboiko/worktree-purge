@@ -34,6 +34,14 @@ is the entire point of the program.
 canonicalised temp directory rather than a string literal, so it fails if
 `normalize` ever forwards `canonicalize` unchanged again.
 
+**Fixing `normalize` alone was not enough.** Three other call sites resolved
+paths independently — `resolve_gitdir_pointer`, the CLI root in `main.rs`, and
+the fixture's `git_common_dir` — and each reintroduced the prefix. The lesson
+is that a single raw `Path::canonicalize` anywhere is enough to break Windows,
+so there is now one wrapper, `scan::repo::canonicalize`, and **nothing in
+`src/` should call `Path::canonicalize` directly.** If you add a call, use the
+wrapper.
+
 ## Test-only issues, and why each was more than a typo
 
 **`/dev/null` is not a path on Windows.** The fixtures neutralised the
@@ -60,6 +68,14 @@ reads the same variable the guard itself uses (`USERPROFILE` on Windows).
 
 **`/usr` does not exist on Windows.** The "the filesystem survived" assertion
 now picks the platform's system directory.
+
+**Separators leak into string assertions.** A test checking that a warning
+"names the path" searched for the literal `no/such/directory`, but the message
+renders with the platform separator, so it could never match on Windows. Build
+the expected fragment with `Path::join` instead of writing it as a literal.
+Note that `Path`/`PathBuf` *equality* is not affected — Windows treats `/` and
+`\` as equivalent when comparing components — so only string-level assertions
+need this care.
 
 **Symlink creation needs a privilege.** `std::os::windows::fs::symlink_dir`
 requires `SeCreateSymbolicLinkPrivilege` (admin, or Developer Mode). Where it

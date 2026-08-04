@@ -197,9 +197,11 @@ impl Repo {
     /// The `.git` directory that owns worktree metadata.
     pub fn git_common_dir(&self) -> PathBuf {
         let out = self.git(&["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-        PathBuf::from(out.trim())
-            .canonicalize()
-            .expect("canonicalise git common dir")
+        undo_verbatim(
+            PathBuf::from(out.trim())
+                .canonicalize()
+                .expect("canonicalise git common dir"),
+        )
     }
 
     /// Add a linked worktree as a sibling of the repo, on a new branch.

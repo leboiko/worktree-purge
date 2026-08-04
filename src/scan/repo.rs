@@ -141,9 +141,7 @@ pub fn resolve_gitdir_pointer(dot_git_file: &Path) -> Option<PathBuf> {
     // Canonicalise the anchor before folding `..` so the lexical fold has as
     // little chance as possible to cross a symlink.
     let parent = dot_git_file.parent()?;
-    let parent = parent
-        .canonicalize()
-        .unwrap_or_else(|_| parent.to_path_buf());
+    let parent = canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
     Some(lexical_normalize(&parent.join(target)))
 }
 
@@ -286,17 +284,27 @@ pub fn list_worktrees(dir: &Path) -> Option<Vec<WorktreeEntry>> {
 /// do not exist (a prunable worktree's directory, an orphan's intended repo
 /// root) fall back to canonicalising the parent, then to a lexical fold.
 pub fn normalize(path: &Path) -> PathBuf {
-    if let Ok(resolved) = path.canonicalize() {
-        return strip_verbatim(resolved);
+    if let Ok(resolved) = canonicalize(path) {
+        return resolved;
     }
     let lexical = lexical_normalize(path);
     match (lexical.parent(), lexical.file_name()) {
-        (Some(parent), Some(name)) => match parent.canonicalize() {
-            Ok(parent) => strip_verbatim(parent).join(name),
+        (Some(parent), Some(name)) => match canonicalize(parent) {
+            Ok(parent) => parent.join(name),
             Err(_) => lexical,
         },
         _ => lexical,
     }
+}
+
+/// [`Path::canonicalize`] with Windows' verbatim prefix removed.
+///
+/// **Always use this rather than `Path::canonicalize` directly.** A `\\?\`
+/// path that reaches git makes it exit 128, and since every path this tool
+/// resolves eventually reaches git, a single raw call is enough to break
+/// removal on Windows. See `docs/notes-windows.md`.
+pub fn canonicalize(path: &Path) -> std::io::Result<PathBuf> {
+    path.canonicalize().map(strip_verbatim)
 }
 
 /// Drop Windows' `\\?\` verbatim prefix from a canonicalised path.

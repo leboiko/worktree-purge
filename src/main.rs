@@ -38,9 +38,9 @@ fn main() -> Result<()> {
         bail!("the `git` command is required but could not be run");
     }
 
-    let root = cli
-        .folder
-        .canonicalize()
+    // Not `Path::canonicalize`: on Windows that yields a `\\?\` path, which
+    // every later git invocation would choke on.
+    let root = scan::repo::canonicalize(&cli.folder)
         .with_context(|| format!("cannot read folder {}", cli.folder.display()))?;
     if !root.is_dir() {
         bail!("{} is not a directory", root.display());

@@ -808,8 +808,12 @@ fn a_missing_scan_root_yields_a_warning_not_a_panic() {
 
     assert!(result.groups.is_empty());
     assert_eq!(result.warnings.len(), 1);
+    // Built with `join` rather than written as a literal: the warning renders
+    // the path with the platform's separator, so a hard-coded "no/such/
+    // directory" would never match on Windows.
+    let tail = PathBuf::from("no").join("such").join("directory");
     assert!(
-        result.warnings[0].contains("no/such/directory"),
+        result.warnings[0].contains(&*tail.to_string_lossy()),
         "warning should name the path: {:?}",
         result.warnings
     );
