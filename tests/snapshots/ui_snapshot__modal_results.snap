@@ -1,0 +1,24 @@
+---
+source: tests/ui_snapshot.rs
+expression: term.backend()
+---
+"┌ worktree-purge ── /home/dev ───────────────────────────────────────────────┐"
+"│ ▼ markdown-reader                           3 worktrees · 1.4 GB · 2 active│"
+"│   [ ] ● feature-auth              412 MB  uncommitted changes              │"
+"│   [ ] ● fix-parser                318 MB  unpushed commits ⚑ 2             │"
+"│   [ ] ○ old-experiment            690 MB                                   │"
+"│ ▼ worktree-purge                                        2 worktrees · 12 MB│"
+"│   ╭ Results ──────────────────────────────────────────────────────────╮    │"
+"│   │  ✓ feature-auth                  412 MB                           │    │"
+"│   │  ✗ release-prep                  fatal: 'release-prep' is locked  │    │"
+"│   │                                                                   │    │"
+"│   │  freed 412 MB · 1 removal failed                                  │    │"
+"│   │                                                                   │    │"
+"│   │  [Enter] close                                                    │    │"
+"│   ╰───────────────────────────────────────────────────────────────────╯    │"
+"│                                                                            │"
+"│                                                                            │"
+"│                                                                            │"
+"│                                                                            │"
+"└────────────────────────────────────────────────────────────────────────────┘"
+" 2 repos · 5 worktrees · 1.4 GB   freed 412 MB · 1 remova… sort: name  ? help "

@@ -1,0 +1,16 @@
+---
+source: tests/ui_snapshot.rs
+expression: term.backend()
+---
+"┌ worktree-purge ── /home/dev┐"
+"╭ Remove 1 worktree ─────────╮"
+"│  feature-auth              │"
+"│                            │"
+"│  reclaims 412 MB           │"
+"│                            │"
+"│  1 worktree marked ! holds │"
+"│                            │"
+"│  [y] review    [Esc] cancel│"
+"╰────────────────────────────╯"
+"└────────────────────────────┘"
+" 2 repos · 5 worktrees · 1.4 …"
